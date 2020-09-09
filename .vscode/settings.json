@@ -1,0 +1,8 @@
+{
+    "python.pythonPath": "C:\\Users\\jackwang\\Miniconda3\\envs\\tf\\python.exe",
+    "python.linting.flake8Enabled": false,
+    "python.formatting.provider": "autopep8",
+    "python.linting.flake8Args": ["--max-line-length=248"],
+    "python.linting.pylintEnabled": false,
+    "python.autoComplete.addBrackets": true
+}

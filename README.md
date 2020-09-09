@@ -34,6 +34,7 @@ Feedbacks and advices are always welcome!
 
 + For models in CleverRec: specify configurations (e.g. model, dataset, split ratio, ...) in 'CleverRec.properties' and then run 'python main.py'.
 + For new models: implement you model based on the interfaces in CleverRec and run as above.
++ Model tuning: run 'python main_tuning.py' to do parameters tuning.
 
 ## Evaluation & Metrics
 

@@ -33,16 +33,21 @@ Feedbacks and advices are always welcome!
 
 ## How to use it
 
-+ For models in CleverRec: specify configurations (e.g. model, dataset, split ratio, ...) in 'CleverRec.properties' and then run 'python main.py'.
-+ For new models: implement you model based on the interfaces in CleverRec and run as above.
-+ Model tuning: run 'python main_tuning.py' to do parameters tuning.
++ For models in CleverRec:
+    + Specify configurations (e.g. model, dataset, split ratio, ...) in 'CleverRec.properties' and then run 'python main.py'.
++ For new models
+    + Implement you model based on the interfaces in CleverRec and run as above.
++ Model tuning
+    + Run 'python main_tuning.py' to do parameters tuning.
 
 ## Evaluation & Metrics
 
 We provides three different evaluation strateties: Leave-one-out, Random split and Random split with specified negative samples (typically 1000). The third one was designed for efficiency consideration since it may be too time-consuming to rank all unobserved items for each user. In addition, we adopt the following metrics:
 
-+ For ranking-based models: HR@K, MRR@K, NDCG@K.
-+ For rating-based models: RMSE, MAE
++ For ranking-based models
+    + HR@K, MRR@K, NDCG@K.
++ For rating-based models
+    + RMSE, MAE
 
 ## Requirements
 

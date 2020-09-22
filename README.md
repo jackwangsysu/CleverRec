@@ -4,6 +4,8 @@ In this repository, we provide an open-source toolkit for recommender system. It
 
 Feedbacks and advices are always welcome!
 
+To be continued...
+
 ## Algorithms
 
 ### Ranking-based Models
@@ -33,7 +35,7 @@ Feedbacks and advices are always welcome!
 
 ## How to use it
 
-+ For models in CleverRec:
++ For models in CleverRec
     + Specify configurations (e.g. model, dataset, split ratio, ...) in 'CleverRec.properties' and then run 'python main.py'.
 + For new models
     + Implement you model based on the interfaces in CleverRec and run as above.
@@ -52,10 +54,6 @@ We provides three different evaluation strateties: Leave-one-out, Random split a
 ## Requirements
 
 + Python 3.5+, Tensorflow 1.13+, Pandas, Numpy, Scipy, Scikit-learn
-
-
-
-
 
 
 

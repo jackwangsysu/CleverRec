@@ -12,24 +12,24 @@ To be continued...
 
 + LFM: Latent Factor Model. 2006.
 + BPR: Bayesian personalized ranking from implicit feedback. UAI 2009.
++ FISM: Factored Item Similarity Models for Top-N Recommender Systems. KDD 2013.
 + SBPR: Leveraging Social Connections to Improve Personalized Ranking for Collaborative Filtering. CIKM 2014.
 + TBPR: Social recommendation with strong and weak ties. CIKM 2016.
-+ FISM: Factored Item Similarity Models for Top-N Recommender Systems. KDD 2013.
-+ NAIS: Neural Attentive Item Similarity Model for Recommendation. TKDE 2018.
 + GMF, MLP, NeuMF: Neural Collaborative Filtering. WWW 2017.
 + CML: Collaborative Metric Learning. WWW 2017.
++ CUNE-BPR: Collaborative User Network Embedding for Social Recommender Systems. SDM 2017.
++ NAIS: Neural Attentive Item Similarity Model for Recommendation. TKDE 2018.
 + LRML: Latent relational metric learning via memory-based attention for collaborative ranking. WWW 2018.
 + TransCF: Collaborative Translational Metric Learning. ICDM 2018.
-+ CUNE-BPR: Collaborative User Network Embedding for Social Recommender Systems. SDM 2017.
 + SAMN: Social Attentional Memory Network_Modeling Aspect- and Friend-Level Differences in Recommendation. WSDM 2019.
 + DiffNet: A Neural Influence Diffusion Model for Social Recommendation. SIGIR 2019.
 + NGCF: Neural Graph Collaborative Filtering. SIGIR 2019.
 
 ### Rating-based Models
 
-+ FM: Factorization Machines. ICDM 2010.
-+ SLIM: Sparse linear methods for top-n recommender systems. 2011
 + SVD++: Factorization meets the neighborhood: a multifaceted collaborative filtering model. KDD 2008.
++ FM: Factorization Machines. ICDM 2010.
++ SLIM: Sparse linear methods for top-n recommender systems. 2011.
 + TrustSVD: Collaborative Filtering with Both the Explicit and Implicit Influence of User Trust and of Item Ratings. AAAI 2015.
 + FFM: Field-aware Factorization Machines for CTR Prediction. RecSys 2016.
 
@@ -53,57 +53,4 @@ We provides three different evaluation strateties: Leave-one-out, Random split a
 
 ## Requirements
 
-+ Python 3.5+, Tensorflow 1.13+, Pandas, Numpy, Scipy, Scikit-learn
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
++ Python 3.5+, Tensorflow 1.13+, Pandas, Numpy, Scipy, Scikit-learn.

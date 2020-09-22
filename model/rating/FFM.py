@@ -28,3 +28,36 @@ class FFM(RatingRecommender):
             self.w0 = tf.Variable(tf.constant(0.0), name='w0') # bias
             self.wi = __create_w([self.data.feature_nums+1], 'wi') # Linear part (0 as the invalid id)
             self.vif = __create_w([self.data.feature_nums+1, self.field_nums, self.embed_size], 'vif') # Field-aware feature embeddings (2nd-order part)
+
+    def _create_embeddings(self):
+        with tf.name_scope('embeddings'):
+            self.wi_embed = tf.gather(self.wi, self.x_idx) # [batch_size, feature_nums]
+            self.vif_embed = tf.gather(self.vif, self.x_idx) # [batch_size, feature_nums, embed_size]
+
+    def _create_inference(self):
+        with tf.name_scope('inference'):
+            # Calculate prediction scores
+            if self.is_real_valued:
+                # Consider real values
+                squared_sum_embed = tf.square(tf.reduce_sum(tf.einsum('ab,abc->abc', self.x_value, self.vif_embed), 1))
+                sum_squared_embed = tf.reduce_sum(tf.einsum('ab,abc->abc', tf.square(self.x_value), tf.square(self.vif_embed)), 1)
+            else:
+                squared_sum_embed = tf.square(tf.reduce_sum(self.vif_embed, 1))
+                sum_squared_embed = tf.reduce_sum(tf.square(self.vif_embed), 1)
+            y_2nd = tf.reduce_sum(squared_sum_embed - sum_squared_embed, 1)
+            self.y_pre = self.w0 + tf.reduce_sum(self.wi_embed, 1) + 0.5 * y_2nd
+
+            # Optimize
+            self.loss = get_loss(self.loss_func, self.y, logits=self.y_pre) + self.reg * (tf.nn.l2_loss(self.wi) + tf.nn.l2_loss(self.vif))
+            self.train = self.optimizer.minimize(self.loss)
+            
+    def _save_model(self):
+        pass
+
+    def build_model(self):
+        self._create_inputs()
+        self._create_params()
+        self._create_embeddings()
+        self._create_inference()
+        # self._predict()
+        # self._save_model()

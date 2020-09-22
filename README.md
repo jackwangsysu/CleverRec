@@ -8,6 +8,7 @@ Feedbacks and advices are always welcome!
 
 ### Ranking-based Models
 
++ LFM: Latent Factor Model. 2006.
 + BPR: Bayesian personalized ranking from implicit feedback. UAI 2009.
 + SBPR: Leveraging Social Connections to Improve Personalized Ranking for Collaborative Filtering. CIKM 2014.
 + TBPR: Social recommendation with strong and weak ties. CIKM 2016.
@@ -45,7 +46,7 @@ We provides three different evaluation strateties: Leave-one-out, Random split a
 
 ## Requirements
 
-+ Python 3.5+, Tensorflow 1.13+, pandas, numpy, scipy, scikit-learn
++ Python 3.5+, Tensorflow 1.13+, Pandas, Numpy, Scipy, Scikit-learn
 
 
 

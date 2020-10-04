@@ -36,9 +36,9 @@ if __name__ == '__main__':
         data = RatingPreprocess(configs, logger)
 
     # Grid Search
-    embed_sizes = map(int, configs['embed_size'][1:-1].split(','))
-    regs = map(float, configs['reg'][1:-1].split(','))
-    neg_ratios = map(int, configs['neg_ratio'][1:-1].split(','))
+    embed_sizes = list(map(int, configs['embed_size'][1:-1].split(',')))
+    regs = list(map(float, configs['reg'][1:-1].split(',')))
+    neg_ratios = list(map(int, configs['neg_ratio'][1:-1].split(',')))
     for embed_size in embed_sizes:
         for reg in regs:
             for neg_ratio in neg_ratios:

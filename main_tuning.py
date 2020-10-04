@@ -6,7 +6,8 @@ import numpy as np, tensorflow as tf
 import configparser as cp
 import os, time, importlib
 from utils.tools import get_logger
-from utils.Preprocess import Preprocess
+from model.RankingPreprocess import RankingPreprocess
+from model.RatingPreprocess import RatingPreprocess
 
 os.environ['KMP_WARNINGS'] = '0'
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
@@ -29,7 +30,10 @@ if __name__ == '__main__':
     logger.info('Current model: %s' % recommender)
 
     # Read and preprocess data
-    data = Preprocess(configs, logger)
+    if configs['model_type'] == 'ranking':
+        data = RankingPreprocess(configs, logger)
+    else:
+        data = RatingPreprocess(configs, logger)
 
     # Grid Search
     embed_sizes = map(int, configs['embed_size'][1:-1].split(','))

@@ -101,12 +101,15 @@ class RankingRecommender(Recommender):
     # For SBPR
     def train_model_sbpr(self, is_suk=True):
         total_loss = 0.0
-        train_ = ranking_sampler_sbpr(self.data, self.SPu, self.neg_ratio, self.batch_size)
+        train_ = ranking_sampler_sbpr(self.data, self.SPu, self.neg_ratio, self.batch_size, is_suk=is_suk)
         # Train
         for id in range(train_[0]):
-            u_idx, i_idx, i_s_idx, i_neg_idx, suk = train_[1][id*self.batch_size:(id+1)*self.batch_size], train_[2][id*self.batch_size:(id+1)*self.batch_size], \
-                train_[3][id*self.batch_size:(id+1)*self.batch_size], train_[4][id*self.batch_size:(id+1)*self.batch_size], train_[5][id*self.batch_size:(id+1)*self.batch_size]
-            train_dict = {self.u_idx: u_idx, self.i_idx: i_idx, self.i_s_idx: i_s_idx, self.i_neg_idx: i_neg_idx, self.suk: suk}
+            u_idx, i_idx, i_s_idx, i_neg_idx = train_[1][id*self.batch_size:(id+1)*self.batch_size], train_[2][id*self.batch_size:(id+1)*self.batch_size], \
+                train_[3][id*self.batch_size:(id+1)*self.batch_size], train_[4][id*self.batch_size:(id+1)*self.batch_size]
+            train_dict = {self.u_idx: u_idx, self.i_idx: i_idx, self.i_s_idx: i_s_idx, self.i_neg_idx: i_neg_idx}
+            if is_suk:
+                suk = train_[5][id*self.batch_size:(id+1)*self.batch_size]
+                train_dict.update({self.suk: suk})
             _, loss_val = self.sess.run([self.train, self.loss], train_dict)
             total_loss += loss_val
         return total_loss/train_[0]

@@ -1,6 +1,7 @@
 # coding: utf-8
 
 import numpy as np, scipy.sparse as sp, tensorflow as tf
+import gensim.models.word2vec as word2vec
 import os, sys, functools, time, logging
 from collections import defaultdict
 
@@ -138,7 +139,7 @@ def get_topK_friends_and_SPu(data, walk_count, walk_length, walk_dim, window_siz
                 if weight > 0:
                     CUNet[u1].extend([u2]*weight)
                     u_neighbors[u1][u2] = weight
-    print('CUNet generated!')
+    print('CUNet done!')
     print('Cost time(CUNet): ', time.strftime('%H: %M: %S', time.gmtime(time.time()-t1)))
 
     t2 = time.time()
@@ -164,18 +165,18 @@ def get_topK_friends_and_SPu(data, walk_count, walk_length, walk_dim, window_siz
             deep_walks.append(walk_path)
     # Shuffle deep walks
     np.random.shuffle(deep_walks)
-    print('Deep walks generated!')
+    print('Deep walks done!')
     print('Cost time(DeepWalk): ', time.strftime('%H: %M: %S', time.gmtime(time.time()-t2)))
 
     t3 = time.time()
     # Generate user embeddings by word2vec
     model = word2vec.Word2Vec(deep_walks, size=walk_dim, window=window_size, min_count=0, iter=3)
     # May get error：TypeError: ufunc 'add' did not contain a loop with signature matching types; <-- Solution：walk_path = [str(u)]
-    print('User embeddings generated!')
+    print('User embeddings done!')
     print('Cost time(word2vec): ', time.strftime('%H: %M: %S', time.gmtime(time.time()-t3)))
 
     # Calculate cosine similarity
-    def cosine_sim(self, a, b):
+    def cosine_sim(a, b):
         a, b = np.array(a), np.array(b)
         return (a.dot(b))/(np.linalg.norm(a)*np.linalg.norm(b))
 
@@ -188,7 +189,7 @@ def get_topK_friends_and_SPu(data, walk_count, walk_length, walk_dim, window_siz
             if u1 != u2:
                 sims.append([u2, cosine_sim(model.wv[str(u1)], model.wv[str(u2)])])
         topK_friends[u1] = list(np.array(sorted(sims, key=lambda s: s[1], reverse=True)[:topK_f])[:,0])
-    print('TopK semantic friends generated!')
+    print('TopK semantic friends done!')
     print('Cost time(topK): ', time.strftime('%H: %M: %S', time.gmtime(time.time()-t4)))
 
     # Get SPu
@@ -203,9 +204,9 @@ def get_topK_friends_and_SPu(data, walk_count, walk_length, walk_dim, window_siz
                 u_s_items = u_s_items.union(set(data.ui_train[friend])).difference(set(data.ui_train[u]))
             if u_s_items: # not empty
                 SPu[u] = list(u_s_items)
-    print('SPu generated!')
+    print('SPu done!')
     print('Cost time(SPu): ', time.strftime('%H: %M: %S', time.gmtime(time.time()-t5)))
-    return SPu
+    return topK_friends, SPu
 
 # Generate the user/item neighbors (For RML-DGATs)
 def get_neighbors_rml_dgats(data, max_i, max_s):

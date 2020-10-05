@@ -20,7 +20,7 @@ class SBPR(RankingRecommender):
     def _create_inputs(self):
         def __create_p(dtype_, shape_, name_):
             return tf.placeholder(dtype_, shape=shape_, name=name_)
-        with tf.name_scope('bpr_inputs'):
+        with tf.name_scope('sbpr_inputs'):
             self.u_idx, self.i_idx = __create_p(tf.int32, [None], 'u_idx'), __create_p(tf.int32, [None], 'i_idx')
             self.i_s_idx, self.i_neg_idx = __create_p(tf.int32, [None], 'i_s_idx'), __create_p(tf.int32, [None], 'i_neg_idx')
             self.suk = __create_p(tf.float32, [None], 'suk')
@@ -53,8 +53,8 @@ class SBPR(RankingRecommender):
             # Optimize
             self.loss = get_loss(self.loss_func, tf.divide(self.ui_scores - self.uk_scores, self.suk)) + get_loss(self.loss_func, self.uk_scores - self.uj_scores) + \
                 self.reg*(tf.nn.l2_loss(self.u_embed) + tf.nn.l2_loss(self.i_embed) + tf.nn.l2_loss(self.i_s_embed) + tf.nn.l2_loss(self.i_neg_embed) + \
-                    tf.nn.l2_loss(i_bias) + tf.nn.l2_loss(i_s_bias) + tf.nn.l2_loss(i_neg_bias))
-            self.train = self.optimizer.minimize(self.loss)``
+                    tf.nn.l2_loss(self.i_bias) + tf.nn.l2_loss(self.i_s_bias) + tf.nn.l2_loss(self.i_neg_bias))
+            self.train = self.optimizer.minimize(self.loss)
 
     def _predict(self):
         if self.configs['data.split_way'] == 'loo' or self.neg_samples > 0:

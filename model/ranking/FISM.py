@@ -54,7 +54,7 @@ class FISM(RankingRecommender):
             if self.is_pairwise == 'True':
                 self.uj_scores = tf.einsum('ab,ab->a', self.j_embed, tf.einsum('a,ab->ab', self.coeff, self.u_neighbors_embed)) + self.j_bias
             # Calculate loss
-            self.loss = (self.reg*(tf.nn.l2_loss(self.P) + tf.nn.l2_loss(self.Q)) + self.reg_bias*tf.nn.l2_loss(self.b))/self.batch_size
+            self.loss = (self.reg*(tf.nn.l2_loss(self.P) + tf.nn.l2_loss(self.Q)))/self.batch_size + self.reg_bias*tf.nn.l2_loss(self.b)
             if self.is_pairwise == 'True':
                 self.loss += get_loss(self.loss_func, self.ui_scores - self.uj_scores)
             else:

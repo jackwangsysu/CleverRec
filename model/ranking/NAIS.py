@@ -3,8 +3,7 @@
 " NAIS: Neural Attentive Item Similarity Model (2018)."
 
 import tensorflow as tf
-from model.RankingRecommender import RankingRecommender
-from utils.tools import get_loss
+from model.Recommender import RankingRecommender
 import os
 
 class NAIS(RankingRecommender):
@@ -15,22 +14,16 @@ class NAIS(RankingRecommender):
         self.atten_type = configs['atten_type'] # concat/prod
         logger.info(' model_params: embed_size=%d, atten_size=%d, atten_type=%s, reg=%s, beta=%s' % (self.embed_size, self.atten_size, \
             self.atten_type, self.reg, self.beta) + ', ' + self.model_params)
-        # Specify training and testing model
-        self.train_model = self.train_model_nais
-        self.test_model_rs, self.test_model_loo = self.test_model_rs_nais, self.test_model_loo_nais
 
     def _create_inputs(self):
         def __create_p(dtype_, shape_, name_):
             return tf.placeholder(dtype_, shape=shape_, name=name_)
         with tf.name_scope('nais_inputs'):
-            # Form mini-batch by single user
-            self.u_idx = __create_p(tf.int32, [None], 'u_idx') # u's neighboring items
-            self.u_nbrs_num = __create_p(tf.int32, [], 'u_nbrs_num')
+            self.u_idx = __create_p(tf.int32, [None, None], 'u_idx') # u's neighboring items
             self.i_idx = __create_p(tf.int32, [None], 'i_idx')
-            self.i_nums = __create_p(tf.int32, [], 'i_nums')
-            self.y = __create_p(tf.float32, [None], 'y') # label
+            self.y = __create_p(tf.float32, [None], 'y')
+            self.batch_size_t_ = __create_p(tf.int32, [], 'batch_size_t_') # Number of testing users in current batch
 
-    # Load pretrained FISM
     def _load_fism_params(self):
         dict_fism = {'FISM_paras/P': self.P, 'FISM_params/Q': self.Q, 'FISM_params/b': self.bias}
         saver_fism = tf.train.Saver(dict_fism)
@@ -41,7 +34,7 @@ class NAIS(RankingRecommender):
             return tf.get_variable(name_, dtype=tf.float32, initializer=self.initializer(shape_), regularizer=self.regularizer)
         def __create_b(shape_, name_):
             return tf.get_variable(name_, dtype=tf.float32, initializer=tf.random_uniform(shape_, -0.1, 0.1))
-        with tf.variable_scope('NAIS_params'):
+        with tf.name_scope('NAIS_params'):
             # Embedding matrix
             self.P = __create_w([self.data.item_nums+1, self.embed_size], 'P')
             self.Q = __create_w([self.data.item_nums+1, self.embed_size], 'Q')
@@ -57,30 +50,44 @@ class NAIS(RankingRecommender):
 
     def _create_embeddings(self):
         with tf.name_scope('embeddings'):
-            self.i_embed_p =tf.gather(self.P, self.u_idx) # [u_items_num, embed_size]
-            self.i_embed_q = tf.gather(self.Q, self.i_idx) # [i_nums, embed_size]
+            self.i_embed_p =tf.gather(self.P, self.u_idx) # [batch_size, max_nbr_nums, embed_size]
+            self.i_embed_q = tf.gather(self.Q, self.i_idx)
             self.i_bias_embed = tf.gather(self.bias, self.i_idx)
 
-    # Calculate user embedding (Train/Test)
-    def _get_u_embed(self, i_embed_q_, i_nums_):
+    # Calculate user embedding
+    def _get_u_embed(self, is_test=False):
+        nbr_existed = tf.cast(tf.not_equal(self.u_idx, self.data.item_nums), tf.float32)
+        self.i_embed_p = tf.einsum('ab,abc->abc', nbr_existed, self.i_embed_p) # [batch_size, max_nbr_nums, embed_size]
+
         # Calculate the attention weights
-        if self.atten_type == 'concat':
-            joint_embed = tf.concat([tf.tile(tf.expand_dims(self.i_embed_p, 0), [i_nums_, 1, 1]), \
-                tf.tile(tf.expand_dims(i_embed_q_, 1), [1, self.u_nbrs_num, 1])], 2) # [i_nums/(item_nums+1), u_items_num, 2*embed_size]
+        if is_test:
+            if self.atten_type == 'concat':
+                joint_embed = tf.concat([tf.tile(tf.expand_dims(self.i_embed_p, 1), [1, self.data.item_nums+1, 1, 1]), \
+                    tf.tile(tf.expand_dims(self.Q, 0), [self.batch_size_t_, 1, self.max_nbr_nums, 1])], 3)
+            else:
+                joint_embed = tf.einsum('acd,bd->abcd', self.i_embed_p, self.Q) # [batch_size, item_nums+1, max_nbr_nums, embed_size]
+            atten_scores = tf.einsum('e,abce->abc', self.h, tf.nn.relu(tf.einsum('abcd,de->abce', joint_embed, self.W) + self.b)) # [batch_size, item_nums+1, embed_size]
         else:
-            joint_embed = tf.einsum('ac,bc->abc', i_embed_q_, self.i_embed_p)
-        atten_scores = tf.einsum('c,abc->ab', self.h, tf.nn.relu(tf.einsum('abc,cd->abd', joint_embed, self.W) + self.b)) # [i_nums/(item_nums+1), u_items_num]
+            if self.atten_type == 'concat':
+                joint_embed = tf.concat([self.i_embed_p, tf.tile(tf.expand_dims(self.i_embed_q, 1), [1, self.max_nbr_nums, 1])], 2)
+            else:
+                joint_embed = tf.einsum('abc,ac->abc', self.i_embed_p, self.i_embed_q)
+            atten_scores = tf.einsum('c,abc->ab', self.h, tf.nn.relu(tf.einsum('abc,cd->abd', joint_embed, self.W) + self.b)) # [batch_size, max_nbr_nums]
 
         # Smoothed softmax
+        k_dim = 2 if is_test else 1
         exp_atten_scores = tf.exp(atten_scores)
-        d = tf.pow(tf.reduce_sum(exp_atten_scores, 1, keep_dims=True), self.beta) # dominator
+        d = tf.pow(tf.reduce_sum(exp_atten_scores, k_dim, keep_dims=True), self.beta) # dominator
         atten_weights = tf.div(exp_atten_scores, d)
-        u_embed = tf.einsum('ab,bc->ac', atten_weights, self.i_embed_p) # [i_nums/(item_nums+1), embed_size]
+        if is_test:
+            u_embed = tf.einsum('abc,adc->abd', atten_weights, self.i_embed_p)
+        else:
+            u_embed = tf.einsum('ab,abc->ac', atten_weights, self.i_embed_p)
         return u_embed
 
     def _create_inference(self):
         with tf.name_scope('inference'):
-            self.u_embed = self._get_u_embed(self.i_embed_q, self.i_nums)
+            self.u_embed = self._get_u_embed()
             # Calculate u's preference score to i
             self.ui_scores = tf.einsum('ab,ab->a', self.u_embed, self.i_embed_q) + self.i_bias_embed
             # Optimize
@@ -89,19 +96,14 @@ class NAIS(RankingRecommender):
             self.train = self.optimizer.minimize(self.loss)
 
     def _predict(self):
-        if self.configs['data.split_way'] == 'loo' or self.neg_samples > 0: # loo/random split with 1000...
+        if self.configs['data.split_way'] == 'loo' or self.neg_samples > 0:
             self.pre_scores = self.ui_scores
-        else: # random split with all
-            u_embed_t = self._get_u_embed(self.Q, self.data.item_nums+1)
-            self.pre_scores = tf.einsum('ab,ab->a', u_embed_t, self.Q) + self.bias
+        else:
+            u_embed_t = self._get_u_embed(is_test=True) # [batch_size, item_nums+1, embed_size]
+            self.pre_scores = tf.einsum('abc,bc->ab', u_embed_t, self.Q) + self.i_bias
 
     def _save_model(self):
-        var_list = {'NAIS_paras/P': self.P, 'NAIS_params/Q': self.Q, 'NAIS_params/bias': self.bias, 'NAIS_params/W': self.W, 'NAIS_params/b': self.b, \
-            'NAIS_params/h': self.h}
-        self.saver = tf.train.Saver(var_list=var_list)
-        tmp_dir = os.path.join(self.saved_model_dir, self.model)
-        if not os.path.exists(tmp_dir):
-            os.makedirs(tmp_dir)
+        pass
 
     def build_model(self):
         self._create_inputs()
@@ -110,5 +112,3 @@ class NAIS(RankingRecommender):
         self._create_inference()
         self._predict()
         self._save_model()
-        
-        

@@ -50,13 +50,21 @@ class RankingPreprocess(object):
         if 'social_file' in self.configs:
             social_file = os.path.join(self.file_path, self.configs['social_file'])
             trusts = _read_csv(social_file, 0, ['u_id', 'v_id'], [0, 1])
-            # Filter out invalid users
+            # Filter out invalid users (users that not in ratings)
             trusts = trusts[trusts.u_id.isin(user_set_) & trusts.v_id.isin(user_set_)]
             # Reindex
             trusts.u_id = trusts.u_id.map(lambda x : user_map[x])
             trusts.v_id = trusts.v_id.map(lambda x : user_map[x])
             self.user_friends = trusts.groupby('u_id').v_id.apply(list).to_dict()
-            # print('total_relations: ', trusts.shape[0])
+
+            # Patch masked users (For SAMN)
+            if self.configs['recommender'] == 'SAMN':
+                user_set = set(ratings.u_id.unique())
+                max_f_nums = max(len(self.user_friends[u]) for u in self.user_friends)
+                for u in user_set:
+                    if u not in self.user_friends:
+                        self.user_friends[u] = []
+                    self.user_friends[u].extend([self.user_nums]*(max_f_nums-len(self.user_friends[u])))
         
         return ratings, item_set
 
@@ -91,14 +99,15 @@ class RankingPreprocess(object):
             train_data, test_data = [], []
             user_items = ratings.groupby('u_id')
             for user, items in user_items:
+                # Users with <= 3 interactions are divided into training set
                 if len(items) <= 3:
                     train_data.append(items)
                 else:
                     train_data.append(items.iloc[:-1])
-                    test_data.append(items.iloc[-1:])
+                    test_data.append(items.iloc[-1:]) # The last item for testing
             train_data, test_data = pd.concat(train_data, ignore_index=True), pd.concat(test_data, ignore_index=True)
         else: # Random split
-            r1, r2, r3 = map(float, self.configs['data.split_ratio'][1:-1].split(','))
+            r1, r2, r3 = tuple(map(float, self.configs['data.split_ratio'][1:-1].split(',')))
             if r2 > 0:
                 train_data, tmp_data = train_test_split(ratings, test_size=1.0-r1)
                 _, test_data = train_test_split(tmp_data, test_size=r3/(r2+r3))
@@ -116,7 +125,7 @@ class RankingPreprocess(object):
                 seen_items = set() if u not in ui_train else set(ui_train[u])
                 u_neg_items = np.random.choice(list(item_set - seen_items), size=neg_samples, replace=False).tolist()
                 tmp_ui_test[u] = u_neg_items
-                tmp_ui_test[u].extend(ui_test[u])
+                tmp_ui_test[u].extend(ui_test[u]) # Add ground truth items after sampled negative items
             ui_test = tmp_ui_test
 
         tmp_str = '' if split_way == 'loo' else ('split_ratio=%s, ' % self.configs['data.split_ratio'])

@@ -39,7 +39,8 @@ class BPR(RankingRecommender):
             self.ui_scores = tf.einsum('ab,ab->a', self.u_embed, self.i_embed)
             self.uj_scores = tf.einsum('ab,ab->a', self.u_embed, self.j_embed)
             # Optimize
-            self.loss = get_loss(self.loss_func, self.ui_scores - self.uj_scores) + self.reg*(tf.nn.l2_loss(self.P) + tf.nn.l2_loss(self.Q))/self.batch_size
+            self.loss = get_loss(self.loss_func, self.ui_scores - self.uj_scores) + self.reg*(tf.nn.l2_loss(self.u_embed) + tf.nn.l2_loss(self.i_embed) + \
+                tf.nn.l2_loss(self.j_embed))
             self.train = self.optimizer.minimize(self.loss)
 
     def _predict(self):
@@ -50,19 +51,11 @@ class BPR(RankingRecommender):
                 self.pre_scores = tf.matmul(self.u_embed, self.Q, transpose_b=True)
 
     def _save_model(self):
-        # var_list = {'BPR_params/P': self.P, 'BPR_params/Q': self.Q}
-        # self.saver = tf.train.Saver(var_list=var_list)
-        # tmp_dir = os.path.join(self.saved_model_dir, self.model)
-        # if not os.path.exists(tmp_dir):
-        #     os.makedirs(tmp_dir)
-
-        # saved_model
-        self.signature = tf.saved_model.signature_def_utils.build_signature_def(
-            inputs = {'u_idx': tf.saved_model.utils.build_tensor_info(self.u_idx), 'i_idx': tf.saved_model.utils.build_tensor_info(self.i_idx), \
-                'j_idx': tf.saved_model.utils.build_tensor_info(self.j_idx)},
-            outputs = {'output': tf.saved_model.utils.build_tensor_info(self.ui_scores)},
-            method_name = tf.saved_model.signature_constants.PREDICT_METHOD_NAME
-        )
+        var_list = {'BPR_params/P': self.P, 'BPR_params/Q': self.Q}
+        self.saver = tf.train.Saver(var_list=var_list)
+        tmp_dir = os.path.join(self.saved_model_dir, self.model)
+        if not os.path.exists(tmp_dir):
+            os.makedirs(tmp_dir)
 
     def build_model(self):
         self._create_inputs()

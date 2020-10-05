@@ -16,19 +16,16 @@ class SAMN(RankingRecommender):
             self.reg2) + ', ' + self.model_params)
         # Specify training and testing model
         self.train_model = self.train_model_samn
-        self.test_model_rs, self.test_model_loo = self.test_model_rs_samn, self.test_model_loo_samn
 
     def _create_inputs(self):
         def __create_p(dtype_, shape_, name_):
             return tf.placeholder(dtype_, shape=shape_, name=name_)
         with tf.name_scope('bpr_inputs'):
-            self.u_idx = __create_p(tf.int32, [], 'u_idx') # For mini-batch by single user
+            self.u_idx = __create_p(tf.int32, [None], 'u_idx') # For mini-batch by single user
             self.i_idx = __create_p(tf.int32, [None], 'i_idx') # u's consumed items
-            self.i_nums = __create_p(tf.int32, [], 'i_nums')
             self.j_idx = __create_p(tf.int32, [None], 'j_idx')
-            self.uf_idx = __create_p(tf.int32, [None], 'uf_idx') # u's friends
-            self.uf_nums = __create_p(tf.int32, [], 'uf_nums')
-            # self.batch_size_t_ = __create_p(tf.int32, [], 'batch_size_t_') # Number of testing users in current batch
+            self.uf_idx = __create_p(tf.int32, [None, None], 'uf_idx') # u's friends
+            self.batch_size_t_ = __create_p(tf.int32, [], 'batch_size_t_') # Number of testing users in current batch
 
     def _create_params(self):
         def __create_w(shape_, name_):
@@ -53,31 +50,36 @@ class SAMN(RankingRecommender):
             self.u_embed = tf.gather(self.P, self.u_idx)
             self.i_embed, self.i_b_embed = tf.gather(self.Q, self.i_idx), tf.gather(self.i_b, self.i_idx)
             self.j_embed, self.j_b_embed = tf.gather(self.Q, self.j_idx), tf.gather(self.i_b, self.j_idx)
-            self.uf_embed = tf.gather(self.P, self.uf_idx) # Friend embedding, [uf_nums, embed_size]
+            self.uf_embed = tf.gather(self.P, self.uf_idx) # Friend embedding
 
     # Attention-based memory module
     def _get_friend_vec(self):
         with tf.name_scope('memory_attention'):
+            # Remove the masked users
+            f_existed = tf.cast(tf.not_equal(self.uf_idx, self.data.user_nums), tf.float32)
+            self.uf_embed = tf.einsum('ab,abc->abc', f_existed, self.uf_embed)
+
             # Joint embedding
-            u_embed_norm = tf.nn.l2_normalize(self.u_embed)
-            uf_embed_norm = tf.nn.l2_normalize(self.uf_embed, 1)
-            self.joint_embed = tf.einsum('ab,b->ab', uf_embed_norm, u_embed_norm)
+            u_embed_norm = tf.nn.l2_normalize(self.u_embed, 1)
+            uf_embed_norm = tf.nn.l2_normalize(self.uf_embed, 2)
+            self.joint_embed = tf.einsum('ac,abc->abc', u_embed_norm, uf_embed_norm)
 
             # Key addressing
-            self.atten_key = tf.einsum('ab,bc->ac', self.joint_embed, self.Key) # [uf_nums, mem_size]
+            self.atten_key = tf.einsum('abc,cm->abm', self.joint_embed, self.Key)
             self.atten_key = tf.nn.softmax(self.atten_key) # axis=-1
+            self.atten_key = tf.einsum('ab,abc->abc', f_existed, self.atten_key)
 
             # Generate friend vectors
-            F = tf.einsum('ab,bc->ac', self.atten_key, self.Mem) # [uf_nums, embed_size]
+            F = tf.einsum('abm,mc->abc', self.atten_key, self.Mem)
             self.uf_vec = tf.multiply(F, self.uf_embed)
 
     # Friend-level attention module
     def _get_u_frien(self):
         with tf.name_scope('friend_attention'):
-            self.atten_frien = tf.einsum('ac,c->a', tf.nn.relu(tf.einsum('ab,bc->ac', self.uf_vec, self.W3) + self.b), self.h) # [uf_nums]
+            self.atten_frien = tf.einsum('abk,k->ab', tf.nn.relu(tf.einsum('abc,ck->abk', self.uf_vec, self.W3) + self.b), self.h)
             self.atten_frien = tf.nn.softmax(self.atten_frien)
             # Generate u's friend-part representation
-            self.u_frien = tf.einsum('a,ab->b', self.atten_frien, self.uf_vec)
+            self.u_frien = tf.einsum('ab,abc->ac', self.atten_frien, self.uf_vec)
 
     def _create_inference(self):
         with tf.name_scope('inference'):
@@ -87,8 +89,8 @@ class SAMN(RankingRecommender):
             self.u_vec = self.u_embed + self.u_frien
 
             # Calculate preference scores
-            self.ui_scores = tf.einsum('b,ab->a', self.u_vec, self.i_embed) + self.i_b_embed
-            self.uj_scores = tf.einsum('b,ab->a', self.u_vec, self.j_embed) + self.j_b_embed
+            self.ui_scores = tf.einsum('ac,ac->a', self.u_vec, self.i_embed) + self.i_b_embed
+            self.uj_scores = tf.einsum('ac,ac->a', self.u_vec, self.j_embed) + self.j_b_embed
             
             # Loss
             l2_loss1 = tf.nn.l2_loss(self.u_vec) + tf.nn.l2_loss(self.i_embed) + tf.nn.l2_loss(self.j_embed) + tf.nn.l2_loss(self.i_b_embed) + \
@@ -104,7 +106,7 @@ class SAMN(RankingRecommender):
             if self.configs['data.split_way'] == 'loo' or self.neg_samples > 0:
                 self.pre_scores = self.ui_scores
             else:
-                self.pre_scores = tf.einsum('b,ab->a', self.u_vec, self.Q)
+                self.pre_scores = tf.matmul(self.u_vec, self.Q, transpose_b=True) + self.i_b
 
     def _save_model(self):
         var_list = {'samn_params/P': self.P, 'samn_params/Q': self.Q, 'samn_params/i_b': self.i_b, 'samn_params/Key': self.Key, 'samn_params/Mem': self.Mem, \

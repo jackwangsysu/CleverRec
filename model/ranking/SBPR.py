@@ -51,10 +51,10 @@ class SBPR(RankingRecommender):
     def _create_inference(self):
         with tf.name_scope('inference'):
             # Optimize
-            self.loss = get_loss(self.loss_func, tf.divide(self.ui_scores - self.uk_scores, self.suk)) + \
-                get_loss(self.loss_func, self.uk_scores - self.uj_scores) + self.reg * (tf.nn.l2_loss(self.P) + tf.nn.l2_loss(self.Q) + \
-                    tf.nn.l2_loss(self.bias)) / self.batch_size
-            self.train = self.optimizer.minimize(self.loss)
+            self.loss = get_loss(self.loss_func, tf.divide(self.ui_scores - self.uk_scores, self.suk)) + get_loss(self.loss_func, self.uk_scores - self.uj_scores) + \
+                self.reg*(tf.nn.l2_loss(self.u_embed) + tf.nn.l2_loss(self.i_embed) + tf.nn.l2_loss(self.i_s_embed) + tf.nn.l2_loss(self.i_neg_embed) + \
+                    tf.nn.l2_loss(i_bias) + tf.nn.l2_loss(i_s_bias) + tf.nn.l2_loss(i_neg_bias))
+            self.train = self.optimizer.minimize(self.loss)``
 
     def _predict(self):
         if self.configs['data.split_way'] == 'loo' or self.neg_samples > 0:

@@ -59,7 +59,7 @@ class LRML(RankingRecommender):
             self.uj_dist = tf.reduce_sum(tf.square(self.u_embed + self.uj_vec - self.j_embed), 1)
             # Optimize
             self.loss = get_loss(self.loss_func, self.ui_dist - self.uj_dist, margin=self.margin) + \
-                self.reg * (tf.nn.l2_loss(self.P) + tf.nn.l2_loss(self.Q)) / self.batch_size
+                self.reg * (tf.nn.l2_loss(self.u_embed) + tf.nn.l2_loss(self.i_embed) + tf.nn.l2_loss(self.j_embed))
             self.train = self.optimizer.minimize(self.loss)
 
     def _unit_clipping(self):

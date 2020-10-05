@@ -99,7 +99,7 @@ def ranking_sampler_cml(data, neg_ratio, batch_size):
     return train_batches, u_features, i_features, neg_items
 
 # For SBPR
-def ranking_sampler_sbpr(data, SPu, neg_ratio, batch_size):
+def ranking_sampler_sbpr(data, SPu, neg_ratio, batch_size, is_suk=True):
     u_features, i_features, i_s_features, i_neg_features, suk_features = [], [], [], [], []
     for u, items in data.ui_train.items():
         if u not in SPu:
@@ -120,21 +120,50 @@ def ranking_sampler_sbpr(data, SPu, neg_ratio, batch_size):
                 i_neg_features.append(neg)
 
                 # Calculate suk (Social coefficient)
-                suk = 0 # The number of u's friend who consumed sample s while u didn't
-                for friend in data.user_friends[u]:
-                    if friend not in data.ui_train:
-                        continue
-                    if SPu[u][s] in data.ui_train[friend]:
-                        suk += 1
-                suk_features.append(suk)
+                if is_suk:
+                    suk = 0 # The number of u's friend who consumed sample s while u didn't
+                    for friend in data.user_friends[u]:
+                        if friend not in data.ui_train:
+                            continue
+                        if SPu[u][s] in data.ui_train[friend]:
+                            suk += 1
+                    suk_features.append(suk)
 
     train_nums = len(u_features)
     train_batches = math.ceil(train_nums/batch_size)
     # Shuffle the features
-    shuffle_indices = np.random.permutation(np.arange(train_nums))
-    u_features, i_features, i_s_features, i_neg_features, suk_features = np.array(u_features)[shuffle_indices], np.array(i_features)[shuffle_indices], \
-        np.array(i_s_features)[shuffle_indices], np.array(i_neg_features)[shuffle_indices], np.array(suk_features)[shuffle_indices]
-    return train_batches, u_features, i_features, i_s_features, i_neg_features, suk_features
+    s_idx = np.random.permutation(train_nums)
+    u_features, i_features, i_s_features, i_neg_features = np.array(u_features)[s_idx], np.array(i_features)[s_idx], \
+        np.array(i_s_features)[s_idx], np.array(i_neg_features)[s_idx]
+    if is_suk:
+        suk_features = np.array(suk_features)[s_idx]
+        return train_batches, u_features, i_features, i_s_features, i_neg_features, suk_features
+    return train_batches, u_features, i_features, i_s_features, i_neg_features
+
+# For SAMN
+def ranking_sampler_samn(data, neg_ratio, batch_size):
+    u_features, i_features, j_features, uf_features = [], [], [], []
+    for u, items in data.ui_train.items():
+        seen_items = set(items)
+        for i in items:
+            random_j = set()
+            for s in range(neg_ratio):
+                u_features.append(u)
+                i_features.append(i)
+                j = np.random.randint(data.item_nums)
+                while j in random_j or j in seen_items:
+                    j = np.random.randint(data.item_nums)
+                random_j.add(j)
+                j_features.append(j)
+                uf_features.append(data.user_friends[u])
+
+    train_nums = len(u_features)
+    train_batches = math.ceil(train_nums/batch_size)
+    # Shuffle the features
+    s_idx = np.random.permutation(train_nums)
+    u_features, i_features, j_features, uf_features = np.array(u_features)[s_idx], np.array(i_features)[s_idx], np.array(j_features)[s_idx], \
+        np.array(uf_features)[s_idx]
+    return train_batches, u_features, i_features, j_features, uf_features
 
 # For RML-DGATs
 def ranking_sampler_sohrml(data, neg_ratio):

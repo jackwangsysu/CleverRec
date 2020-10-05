@@ -45,7 +45,7 @@ class GMF(RankingRecommender):
     def _create_inference(self):
         with tf.name_scope('inference'):
             self.logits = self._get_logits()
-            self.loss = get_loss(self.loss_func, self.y, logits=self.logits) + self.reg*(tf.nn.l2_loss(self.P) + tf.nn.l2_loss(self.Q))/self.batch_size
+            self.loss = get_loss(self.loss_func, self.y, logits=self.logits) + self.reg*(tf.nn.l2_loss(self.u_embed) + tf.nn.l2_loss(self.i_embed))
             self.train = self.optimizer.minimize(self.loss)
 
     def _predict(self):

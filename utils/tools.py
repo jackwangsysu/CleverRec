@@ -55,10 +55,10 @@ def get_initializer(init_method, stddev=None):
         initializer = tf.truncated_normal_initializer(stddev=stddev)
     elif init_method == 'uniform':
         initializer = tf.random_uniform_initializer(-stddev, stddev)
+    elif init_method == 'xavier':
+        initializer = tf.contrib.layers.xavier_initializer()
     elif init_method == 'xavier_normal':
         initializer = tf.contrib.layers.xavier_initializer(uniform=False)
-    elif init_method == 'xavier_uniform':
-        initializer = tf.contrib.layers.xavier_initializer()
     return initializer
 
 # Loss function
@@ -125,11 +125,94 @@ def get_SPu(data):
                 SPu[u] = list(u_s_items)
     return SPu
 
+# Get the topK latent friends and SPu
+def get_topK_friends_and_SPu(data, walk_count, walk_length, walk_dim, window_size, topK_f):
+    t1 = time.time()
+    # Generate CUNet
+    CUNet = defaultdict(list) # Collaborative User Net
+    u_neighbors = defaultdict(dict)
+    for u1 in data.ui_train:
+        for u2 in data.ui_train:
+            if u1 != u2:
+                weight = len(set(data.ui_train[u1]).intersection(set(data.ui_train[u2])))
+                if weight > 0:
+                    CUNet[u1].extend([u2]*weight)
+                    u_neighbors[u1][u2] = weight
+    print('CUNet generated!')
+    print('Cost time(CUNet): ', time.strftime('%H: %M: %S', time.gmtime(time.time()-t1)))
+
+    t2 = time.time()
+    # Generate random deep walks
+    deep_walks = []
+    visited = defaultdict(dict)
+    for u in CUNet:
+        for t in range(walk_count):
+            walk_path = [str(u)]
+            last_node = u
+            for i in range(1, walk_length):
+                unvisited_neighbors = list((set(u_neighbors[last_node].keys())).difference(set(visited[last_node])))
+                if len(unvisited_neighbors) == 0: # All neighbors have been visited
+                    next_node = np.random.choice(CUNet[last_node]) # Randomly choose one
+                else:
+                    # Select the next node
+                    all_weights = [u_neighbors[last_node][neighbor] for neighbor in unvisited_neighbors]
+                    max_id = all_weights.index(max(all_weights))
+                    next_node = unvisited_neighbors[max_id]
+                walk_path.append(str(next_node))
+                visited[u][next_node] = 1 # Mark as visited
+                last_node = next_node
+            deep_walks.append(walk_path)
+    # Shuffle deep walks
+    np.random.shuffle(deep_walks)
+    print('Deep walks generated!')
+    print('Cost time(DeepWalk): ', time.strftime('%H: %M: %S', time.gmtime(time.time()-t2)))
+
+    t3 = time.time()
+    # Generate user embeddings by word2vec
+    model = word2vec.Word2Vec(deep_walks, size=walk_dim, window=window_size, min_count=0, iter=3)
+    # May get error：TypeError: ufunc 'add' did not contain a loop with signature matching types; <-- Solution：walk_path = [str(u)]
+    print('User embeddings generated!')
+    print('Cost time(word2vec): ', time.strftime('%H: %M: %S', time.gmtime(time.time()-t3)))
+
+    # Calculate cosine similarity
+    def cosine_sim(self, a, b):
+        a, b = np.array(a), np.array(b)
+        return (a.dot(b))/(np.linalg.norm(a)*np.linalg.norm(b))
+
+    t4 = time.time()
+    # Construct the user similartiy matrix
+    topK_friends = {}
+    for u1 in CUNet:
+        sims = []
+        for u2 in CUNet:
+            if u1 != u2:
+                sims.append([u2, cosine_sim(model.wv[str(u1)], model.wv[str(u2)])])
+        topK_friends[u1] = list(np.array(sorted(sims, key=lambda s: s[1], reverse=True)[:topK_f])[:,0])
+    print('TopK semantic friends generated!')
+    print('Cost time(topK): ', time.strftime('%H: %M: %S', time.gmtime(time.time()-t4)))
+
+    # Get SPu
+    t5 = time.time()
+    SPu = {}
+    for u in data.ui_train:
+        u_s_items = set()
+        if u in topK_friends:
+            for friend in topK_friends[u]:
+                if friend not in data.ui_train:
+                    continue
+                u_s_items = u_s_items.union(set(data.ui_train[friend])).difference(set(data.ui_train[u]))
+            if u_s_items: # not empty
+                SPu[u] = list(u_s_items)
+    print('SPu generated!')
+    print('Cost time(SPu): ', time.strftime('%H: %M: %S', time.gmtime(time.time()-t5)))
+    return SPu
+
 # Generate the user/item neighbors (For RML-DGATs)
 def get_neighbors_rml_dgats(data, max_i, max_s):
     u_max_i, u_max_s = max(len(data.ui_train[u]) for u in data.ui_train), max(len(data.user_friends[u]) for u in data.user_friends)
     u_nums_i, u_nums_s = max_i if 0 < max_i < u_max_i else u_max_i, max_s if 0 < max_s < u_max_s else u_max_s
     user_nbrs_i, user_nbrs_s = np.zeros((data.user_nums, u_nums_i), np.int32), np.zeros((data.user_nums, u_nums_s), np.int32)
+    
     # Item domain
     iu_train = defaultdict(list)
     # For user

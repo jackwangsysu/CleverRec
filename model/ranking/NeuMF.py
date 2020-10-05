@@ -90,8 +90,8 @@ class NeuMF(RankingRecommender):
             y_mlp_tr = self._get_y_mlp()
             # Fuse GMF and MLP
             self.logits = self._get_logits(y_gmf_tr, y_mlp_tr)
-            self.loss = get_loss(self.loss_func, self.y, logits=self.logits) + (self.reg1*(tf.nn.l2_loss(self.P_gmf)+tf.nn.l2_loss(self.Q_gmf)) + \
-                self.reg2*(tf.nn.l2_loss(self.P_mlp)+tf.nn.l2_loss(self.Q_mlp)))/self.batch_size
+            self.loss = get_loss(self.loss_func, self.y, logits=self.logits) + self.reg1*(tf.nn.l2_loss(self.u_embed_gmf)+tf.nn.l2_loss(self.i_embed_gmf)) + \
+                self.reg2*(tf.nn.l2_loss(self.u_embed_mlp)+tf.nn.l2_loss(self.i_embed_mlp))
             self.train = self.optimizer.minimize(self.loss)
 
     def _predict(self):

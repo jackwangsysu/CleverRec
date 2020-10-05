@@ -1,9 +1,9 @@
 " Recommender for Ranking/Rating Model. "
 
-import numpy as np, tensorflow as tf
+import numpy as np, scipy.sparse as sp, tensorflow as tf
 from model.Recommender import Recommender
 from collections import defaultdict
-from utils.tools import timer
+from utils.tools import timer, get_adj_mat_i, get_adj_mat_s
 from utils.sampler import *
 from utils.metrics import *
 import os, time, math
@@ -99,7 +99,7 @@ class RankingRecommender(Recommender):
         return total_loss/train_[0]
 
     # For SBPR
-    def train_model_sbpr(self):
+    def train_model_sbpr(self, is_suk=True):
         total_loss = 0.0
         train_ = ranking_sampler_sbpr(self.data, self.SPu, self.neg_ratio, self.batch_size)
         # Train
@@ -113,6 +113,19 @@ class RankingRecommender(Recommender):
 
     # For SAMN
     def train_model_samn(self):
+        total_loss = 0.0
+        train_ = ranking_sampler_samn(self.data, self.neg_ratio, self.batch_size)
+        # Train
+        for id in range(train_[0]):
+            u_idx, i_idx, j_idx, uf_idx = train_[1][id*self.batch_size:(id+1)*self.batch_size], train_[2][id*self.batch_size:(id+1)*self.batch_size], \
+                train_[3][id*self.batch_size:(id+1)*self.batch_size], train_[4][id*self.batch_size:(id+1)*self.batch_size]
+            train_dict = {self.u_idx: u_idx, self.i_idx: i_idx, self.j_idx: j_idx, self.uf_idx: uf_idx}
+            _, loss_val = self.sess.run([self.train, self.loss], train_dict)
+            total_loss += loss_val
+        return total_loss/train_[0]
+
+    # For SAMN_Single
+    def train_model_samn_single(self):
         total_loss = 0.0
         for u, items in self.data.ui_train.items():
             if u not in self.data.user_friends:
@@ -194,6 +207,12 @@ class RankingRecommender(Recommender):
             # For RML-DGATs
             if self.model in ['RML_DGATs', 'SoHRML']:
                 test_dict.update({self.is_train: 0})
+            # For SAMN
+            if self.model == 'SAMN':
+                uf_idx = []
+                for u in cur_users:
+                    uf_idx.append(self.data.user_friends[u])
+                test_dict.update({self.uf_idx: uf_idx})
             # Predict
             pre_scores = self.sess.run(self.pre_scores, test_dict)
             if self.cml_like:
@@ -245,6 +264,12 @@ class RankingRecommender(Recommender):
             # For RML-DGATs
             if self.model in ['RML_DGATs', 'SoHRML']:
                 test_dict.update({self.is_train: 0})
+            # For SAMN
+            if self.model == 'SAMN':
+                uf_idx = []
+                for u in cur_users:
+                    uf_idx.append(self.data.user_friends[u])
+                test_dict.update({self.uf_idx: uf_idx})
             # Predict
             pre_scores = self.sess.run(self.pre_scores, test_dict)
             # Evaluate
@@ -318,7 +343,7 @@ class RankingRecommender(Recommender):
                 NDCG[kid].append(ndcg_u)
         return HR, MRR, NDCG
 
-    def test_model_rs_samn(self):
+    def test_model_rs_samn_single(self):
         HR, MRR, NDCG = defaultdict(list), defaultdict(list), defaultdict(list) # evaluation metrics
         for u in self.test_users:
             uf_idx = self.data.user_friends[u] if u in self.data.user_friends else [self.data.user_nums]
@@ -343,7 +368,7 @@ class RankingRecommender(Recommender):
                 NDCG[kid].append(ndcg_u)
         return HR, MRR, NDCG
 
-    def test_model_loo_samn(self):
+    def test_model_loo_samn_single(self):
         HR, MRR, NDCG = defaultdict(list), defaultdict(list), defaultdict(list) # evaluation metrics
         for u in self.test_users:
             i_idx = self.data.ui_test[u]
@@ -400,19 +425,9 @@ class RankingRecommender(Recommender):
                 if best_flag:
                     best_metrics[id] = (hr, mrr, ndcg)
                     best_epoch = epoch + 1
-                    if id == len(self.topk) - 1:
-                        # self.saver.save(self.sess, os.path.join(self.saved_model_dir, self.model, self.model)) # Save the model
-
-                        # saved_model
-                        if os.path.exists(self.saved_path):
-                            shutil.rmtree(self.saved_path)
-                        builder = tf.saved_model.builder.SavedModelBuilder(self.saved_path)                                          
-                        builder.add_meta_graph_and_variables(self.sess, 
-                            tags = [tf.saved_model.tag_constants.SERVING], 
-                            signature_def_map={'serving_default': self.signature}
-                        )
-                        builder.save()
-            # self.sess.graph.finalize() # Lock the graph
+                    # if id == len(self.topk) - 1:
+                    #     self.saver.save(self.sess, os.path.join(self.saved_model_dir, self.model, self.model)) # Save the model
+            self.sess.graph.finalize() # Lock the graph
 
         # Final results
         self.logger.info('best_epoch: %d' % best_epoch)

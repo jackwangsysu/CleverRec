@@ -21,6 +21,7 @@ class CML(RankingRecommender):
         with tf.name_scope('cml_inputs'):
             self.u_idx, self.i_idx = __create_p(tf.int32, [None], 'u_idx'), __create_p(tf.int32, [None], 'i_idx')
             self.neg_items = __create_p(tf.int32, [None, self.neg_ratio], 'neg_items')
+            self.batch_size_t_ = __create_p(tf.int32, [], 'batch_size_t_') # Number of testing users in current batch
 
     def _create_params(self):
         def __create_w(shape_, name_):
@@ -42,7 +43,7 @@ class CML(RankingRecommender):
             self.u_neg_dist = tf.reduce_sum(tf.squared_difference(tf.expand_dims(self.u_embed, -1), self.neg_embed), 1) # [batch_size, neg_ratio]
             # Get the minimize distance of all negative items
             u_neg_dist_min = tf.reduce_min(self.u_neg_dist, 1)
-            loss_per_pair = get_loss(self.loss_func, self.u_i_dist - self.u_neg_dist, margin=self.margin)
+            loss_per_pair = tf.maximum(self.u_i_dist + self.margin - u_neg_dist_min, 0)
 
             ## WARP Loss
             # Imposters indicator
@@ -70,8 +71,11 @@ class CML(RankingRecommender):
 
     def _unit_clipping(self):
         with tf.name_scope('unit_clipping'):
-            self.P = tf.clip_by_norm(self.P, 1.0, axes=[1])
-            self.Q = tf.clip_by_norm(self.Q, 1.0, axes=[1])
+            # self.P = tf.clip_by_norm(self.P, 1.0, axes=[1])
+            # self.Q = tf.clip_by_norm(self.Q, 1.0, axes=[1])
+            self.u_embed = tf.clip_by_norm(self.u_embed, 1.0, axes=[1])
+            self.i_embed = tf.clip_by_norm(self.i_embed, 1.0, axes=[1])
+            self.neg_embed = tf.clip_by_norm(self.neg_embed, 1.0, axes=[1])
 
     def _predict(self):
         if self.configs['data.split_way'] == 'loo' or self.neg_samples > 0:

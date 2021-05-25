@@ -23,11 +23,7 @@ To be continued...
 + TransCF: Collaborative Translational Metric Learning. ICDM 2018.
 + SAMN: Social Attentional Memory Network_Modeling Aspect- and Friend-Level Differences in Recommendation. WSDM 2019.
 + DiffNet: A Neural Influence Diffusion Model for Social Recommendation. SIGIR 2019.
-+ NGCF: Neural Graph Collaborative Filtering. SIGIR 2019.
 + SML: Symmetric Metric Learning with Adaptive Margin for Recommendation. AAAI 2020.
-+ LightGCN:  Simplifying and Powering Graph Convolution Network for Recommendation. SIGIR 2020.
-+ LR-GCCF: Revisiting Graph based Collaborative Filtering - A Linear Residual Graph Convolutional Network Approach. AAAI 2020.
-+ DiffNet++: A Neural Influence and Interest Diffusion Network for Social Recommendation. TKDE 2020.
 
 
 ### Rating-based Models
@@ -37,7 +33,6 @@ To be continued...
 + SLIM: Sparse linear methods for top-n recommender systems. 2011.
 + TrustSVD: Collaborative Filtering with Both the Explicit and Implicit Influence of User Trust and of Item Ratings. AAAI 2015.
 + FFM: Field-aware Factorization Machines for CTR Prediction. RecSys 2016.
-+ GraphRec: Graph Neural Networks for Social Recommendation. WWW 2019.
 
 ## How to use it
 
